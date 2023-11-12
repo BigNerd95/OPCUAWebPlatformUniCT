@@ -883,7 +883,7 @@ namespace WebPlatform.OPCUALayer
 
                 var structStandard = ((ExtensionObject)value.Value).Body;
                 var jValue = JObject.FromObject(structStandard);
-                var schema4 = generateSchema ? JsonSchema4.FromSampleJson(jValue.ToString()) : null;
+                var schema4 = generateSchema ? NJsonSchema.JsonSchema.FromSampleJson(jValue.ToString()) : null;
                 var jSchema = generateSchema ? JSchema.Parse(schema4.ToJson()) : null;
                 return new UaValue(jValue, jSchema);
             }
@@ -917,7 +917,7 @@ namespace WebPlatform.OPCUALayer
                 {
                     var structArray = ((ExtensionObject[])value.Value).Select(s=> s.Body);
                     var jArray = JArray.FromObject(structArray);
-                    var schema4 = generateSchema ? JsonSchema4.FromSampleJson(jArray.ToString()) : null;
+                    var schema4 = generateSchema ? NJsonSchema.JsonSchema.FromSampleJson(jArray.ToString()) : null;
                     var jSchema = generateSchema ? JSchema.Parse(schema4.ToJson()) : null;
                     return new UaValue(jArray, jSchema);
                 }

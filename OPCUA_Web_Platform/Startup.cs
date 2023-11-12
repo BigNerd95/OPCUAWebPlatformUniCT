@@ -51,7 +51,10 @@ namespace WebPlatform
             services.Configure<JwtOptions>(Configuration.GetSection("JwtOptions"));
             services.Configure<OPCUAServersOptions>(Configuration.GetSection("OPCUAServersOptions"));
 
-            services.AddMvc();
+            //services.AddMvc();
+            services.AddMvc(options => options.EnableEndpointRouting = false).AddNewtonsoftJson();
+            //.AddNewtonsoftJson();
+
 
             //Register server specific for the platform
             services.AddTransient<ITokenManager, JwtManager>();
@@ -59,6 +62,8 @@ namespace WebPlatform
 
             //Register a singleton service managing OPC UA interactions
             services.AddSingleton<IUaClientSingleton, UaClient>();
+
+            //services.AddControllers().AddNewtonsoftJson();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -76,6 +81,8 @@ namespace WebPlatform
             app.UseRefreshToken();
             
             app.UseMvc();
+
+
 
         }
     }
