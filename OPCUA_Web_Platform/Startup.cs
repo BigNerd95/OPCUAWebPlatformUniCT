@@ -36,10 +36,10 @@ namespace WebPlatform
             {
                 options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
+                    ValidateIssuer = false, //true,
+                    ValidateAudience = false, //true,
+                    ValidateLifetime = false, //true,
+                    ValidateIssuerSigningKey = false, //true,
                     ValidIssuer = Configuration["JwtOptions:Issuer"],
                     ValidAudience = Configuration["JwtOptions:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(Configuration["JwtOptions:SecurityKey"]))

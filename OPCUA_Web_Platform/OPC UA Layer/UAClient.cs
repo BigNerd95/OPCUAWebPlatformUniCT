@@ -13,21 +13,22 @@ using WebPlatform.Exceptions;
 using WebPlatform.Monitoring;
 using WebPlatform.Models.DataSet;
 using WebPlatform.OPC_UA_Layer;
+using WebPlatform.Models.OptionsModels;
 
 namespace WebPlatform.OPCUALayer
 {
     public interface IUaClient
     {
-        Task<Node> ReadNodeAsync(string serverUrl, string nodeIdStr);
-        Task<Node> ReadNodeAsync(string serverUrl, NodeId nodeId);
-        Task<IEnumerable<EdgeDescription>> BrowseAsync(string serverUrl, string nodeToBrowseIdStr);
-        Task<UaValue> ReadUaValueAsync(string serverUrl, VariableNode varNode);
-        Task<string> GetDeadBandAsync(string serverUrl, VariableNode varNode);
-        Task<bool> WriteNodeValueAsync(string serverUrl, VariableNode variableNode, VariableState state);
-        Task<bool> IsFolderTypeAsync(string serverUrlstring, string nodeIdStr);
-        Task<bool> IsServerAvailable(string serverUrlstring);
-        Task<bool[]> CreateMonitoredItemsAsync(string serverUrl, MonitorableNode[] monitorableNodes, string brokerUrl, string topic);
-        Task<bool> DeleteMonitoringPublish(string serverUrl, string brokerUrl, string topic);
+        Task<Node> ReadNodeAsync(OPCUAServers server, string nodeIdStr);
+        Task<Node> ReadNodeAsync(OPCUAServers server, NodeId nodeId);
+        Task<IEnumerable<EdgeDescription>> BrowseAsync(OPCUAServers server, string nodeToBrowseIdStr);
+        Task<UaValue> ReadUaValueAsync(OPCUAServers server, VariableNode varNode);
+        Task<string> GetDeadBandAsync(OPCUAServers server, VariableNode varNode);
+        Task<bool> WriteNodeValueAsync(OPCUAServers server, VariableNode variableNode, VariableState state);
+        Task<bool> IsFolderTypeAsync(OPCUAServers server, string nodeIdStr);
+        Task<bool> IsServerAvailable(OPCUAServers server);
+        Task<bool[]> CreateMonitoredItemsAsync(OPCUAServers server, MonitorableNode[] monitorableNodes, string brokerUrl, string topic);
+        Task<bool> DeleteMonitoringPublish(OPCUAServers server, string brokerUrl, string topic);
     }
 
     public interface IUaClientSingleton : IUaClient {}
@@ -38,12 +39,15 @@ namespace WebPlatform.OPCUALayer
         private ApplicationConfiguration _appConfiguration;
         private bool _autoAccept;
 
+
         //A Dictionary containing al the active Sessions, indexed per server Id.
         private readonly Dictionary<string, Session> _sessions;
         private readonly Dictionary<string, List<MonitorPublishInfo>> _monitorPublishInfo;
 
         public UaClient()
         {
+
+
             _application = new ApplicationInstance
             {
                 ApplicationType = ApplicationType.Client,
@@ -52,28 +56,34 @@ namespace WebPlatform.OPCUALayer
             
             _sessions = new Dictionary<string, Session>();
             _monitorPublishInfo = new Dictionary<string, List<MonitorPublishInfo>>();
+
+            Console.WriteLine("\n\n\n\nCLIENT INIT\n\n\n\n");
+
         }
 
-        public async Task<Node> ReadNodeAsync(string serverUrl, string nodeIdStr)
+        public async Task<Node> ReadNodeAsync(OPCUAServers server, string nodeIdStr)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             NodeId nodeToRead = PlatformUtils.ParsePlatformNodeIdString(nodeIdStr);
             var node = session.ReadNode(nodeToRead);
             return node;
         }
 
-        public async Task<Node> ReadNodeAsync(string serverUrl, NodeId nodeToRead)
+        public async Task<Node> ReadNodeAsync(OPCUAServers server, NodeId nodeToRead)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             Node node;
             node = session.ReadNode(nodeToRead);
             return node;
         }
 
 
-        public async Task<bool> WriteNodeValueAsync(string serverUrl, VariableNode variableNode, VariableState state)
+        public async Task<bool> WriteNodeValueAsync(OPCUAServers server, VariableNode variableNode, VariableState state)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             var typeManager = new DataTypeManager(session);
             WriteValueCollection writeValues = new WriteValueCollection();
             
@@ -95,9 +105,10 @@ namespace WebPlatform.OPCUALayer
             return true;
         }
 
-        public async Task<IEnumerable<EdgeDescription>> BrowseAsync(string serverUrl, string nodeToBrowseIdStr)
+        public async Task<IEnumerable<EdgeDescription>> BrowseAsync(OPCUAServers server, string nodeToBrowseIdStr)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             NodeId nodeToBrowseId = PlatformUtils.ParsePlatformNodeIdString(nodeToBrowseIdStr);
 
             var browser = new Browser(session)
@@ -115,9 +126,10 @@ namespace WebPlatform.OPCUALayer
                     rd.ReferenceTypeId));
         }
 
-        public async Task<bool> IsFolderTypeAsync(string serverUrl, string nodeIdStr)
+        public async Task<bool> IsFolderTypeAsync(OPCUAServers server, string nodeIdStr)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             NodeId nodeToBrowseId = PlatformUtils.ParsePlatformNodeIdString(nodeIdStr);
 
             //Set a Browser object to follow HasTypeDefinition Reference only
@@ -144,20 +156,22 @@ namespace WebPlatform.OPCUALayer
             return targetId == ObjectTypeIds.FolderType;
         }
 
-        public async Task<UaValue> ReadUaValueAsync(string serverUrl, VariableNode variableNode)
+        public async Task<UaValue> ReadUaValueAsync(OPCUAServers server, VariableNode variableNode)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            Session session = await GetSessionAsync(server);
             var typeManager = new DataTypeManager(session);
 
             return typeManager.GetUaValue(variableNode);
         }
 
-        public async Task<bool> IsServerAvailable(string serverUrlstring)
+        //public async Task<bool> IsServerAvailable(string serverUrlstring)
+        public async Task<bool> IsServerAvailable(OPCUAServers server)
         {
             Session session;
             try
             {
-                session = await GetSessionAsync(serverUrlstring);
+                session = await GetSessionAsync(server);
             }
             catch (Exception exc)
             {
@@ -165,13 +179,15 @@ namespace WebPlatform.OPCUALayer
             }
             if(session.IsServerStatusGood())
                 return true;
-            return await RestoreSessionAsync(serverUrlstring);
+            return await RestoreSessionAsync(server);
         }
 
         
-        public async Task<string> GetDeadBandAsync(string serverUrl, VariableNode varNode)
+        public async Task<string> GetDeadBandAsync(OPCUAServers server, VariableNode varNode)
         {
-            Session session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+
+            Session session = await GetSessionAsync(server);
             var dataTypeId = varNode.DataType;
 
             var browse = new Browser(session)
@@ -203,10 +219,13 @@ namespace WebPlatform.OPCUALayer
 
         }
 
-        public async Task<bool[]> CreateMonitoredItemsAsync(string serverUrl, MonitorableNode[] monitorableNodes,
+        public async Task<bool[]> CreateMonitoredItemsAsync(OPCUAServers server, MonitorableNode[] monitorableNodes,
             string brokerUrl, string topic)
         {
-            var session = await GetSessionAsync(serverUrl);
+
+            string serverUrl = server.Url;
+
+            var session = await GetSessionAsync(server);
 
             MonitorPublishInfo monitorInfo;
 
@@ -293,9 +312,10 @@ namespace WebPlatform.OPCUALayer
             return results;
         }
 
-        public async Task<bool> DeleteMonitoringPublish(string serverUrl, string brokerUrl, string topic)
+        public async Task<bool> DeleteMonitoringPublish(OPCUAServers server, string brokerUrl, string topic)
         {
-            var session = await GetSessionAsync(serverUrl);
+            string serverUrl = server.Url;
+            var session = await GetSessionAsync(server);
 
             lock (_monitorPublishInfo)
             {
@@ -373,8 +393,9 @@ namespace WebPlatform.OPCUALayer
         /// </summary>
         /// <param name="serverUrlstring"></param>
         /// <returns></returns>
-        private async Task<bool> RestoreSessionAsync(string serverUrlstring)
+        private async Task<bool> RestoreSessionAsync(OPCUAServers server)
         {
+            string serverUrlstring = server.Url;
             lock (_sessions)
             {
                 if(_sessions.ContainsKey(serverUrlstring))
@@ -384,7 +405,7 @@ namespace WebPlatform.OPCUALayer
             Session session;
             try
             {
-                return (await GetSessionAsync(serverUrlstring)).IsServerStatusGood();
+                return (await GetSessionAsync(server)).IsServerStatusGood();
             }
             catch (Exception)
             {
@@ -392,8 +413,13 @@ namespace WebPlatform.OPCUALayer
             }
         }
 
-        private async Task<Session> GetSessionAsync(string serverUrl)
+        private async Task<Session> GetSessionAsync(OPCUAServers server)
         {
+            string serverUrl = server.Url;
+            
+            Console.WriteLine("Server url: {0}", serverUrl);
+
+
             lock (_sessions)
             {
                 if (_sessions.ContainsKey(serverUrl)) return _sessions[serverUrl];
@@ -403,7 +429,9 @@ namespace WebPlatform.OPCUALayer
             EndpointDescription endpointDescription;
             try
             {
-                endpointDescription = CoreClientUtils.SelectEndpoint(serverUrl, true, 15000);
+                //endpointDescription = CoreClientUtils.SelectEndpoint(serverUrl, true, 15000);
+                endpointDescription = CoreClientUtils.SelectEndpoint(serverUrl, false, 15000);
+
             }
             catch (Exception)
             {
@@ -418,13 +446,25 @@ namespace WebPlatform.OPCUALayer
             var endpoint = new ConfiguredEndpoint(endpointDescription.Server, endpointConfiguration);
             endpoint.Update(endpointDescription);
 
+            UserIdentity user_identity = null;
+
+            if (server.Auth == true && server.User != null && server.Password != null)
+            {
+                Console.WriteLine("    Using auth: {0}", server.User);
+                user_identity = new UserIdentity(server.User, server.Password);
+            }
+            else {
+                Console.WriteLine("    Using anonymous");
+
+            }
+
             var s = await Session.Create(_appConfiguration,
                                              endpoint,
                                              true,
                                              false,
                                              _appConfiguration.ApplicationName + "_session",
                                              (uint)_appConfiguration.ClientConfiguration.DefaultSessionTimeout,
-                                             null,
+                                             user_identity,
                                              null);
             
             lock (_sessions)

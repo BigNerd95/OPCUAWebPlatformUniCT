@@ -26,12 +26,21 @@ namespace WebPlatform.Controllers
     public class ApiController : Controller
     {
         private readonly OPCUAServers[] _uaServers;
+
         private readonly IUaClientSingleton _uaClient;
 
         public ApiController(IOptions<OPCUAServersOptions> servers, IUaClientSingleton UAClient)
         {
+
+            // popola la lista dei servers
             this._uaServers = servers.Value.Servers;
-            for (int i = 0; i < _uaServers.Length; i++) _uaServers[i].Id = i;
+            for (int i = 0; i < _uaServers.Length; i++) { 
+                
+                _uaServers[i].Id = i; 
+            
+            }
+
+
 
             this._uaClient = UAClient;
         }
@@ -40,24 +49,37 @@ namespace WebPlatform.Controllers
         public IActionResult GetDataSets()
         {
             return Ok( _uaServers );
+
         }
 
         [HttpGet("data-sets/{ds_id:int}/nodes/{node_id:regex(^\\d+-(?:(\\d+)|(.+))$)?}")]
         public async Task<IActionResult> GetNode(int ds_id, string node_id = "0-85")
         {
+
+            Console.WriteLine("New request");
+
+
+
             if (ds_id < 0 || ds_id >= _uaServers.Length) return NotFound($"There is no Data Set for id {ds_id}");
             
-            var serverUrl = _uaServers[ds_id].Url;
-            if (!(await _uaClient.IsServerAvailable(serverUrl)))
+            var server = _uaServers[ds_id];
+            if (!(await _uaClient.IsServerAvailable(server))) {
+                Console.WriteLine("Server not available");
+
                 return StatusCode(500, "Data Set " + ds_id + " NotAvailable");
 
+            }
+
             var decodedNodeId = WebUtility.UrlDecode(node_id);
+
+            Console.WriteLine("Node id {0}", decodedNodeId);
+
 
             var result = new JObject();
 
             try 
             {
-			    var sourceNode = await _uaClient.ReadNodeAsync(serverUrl, decodedNodeId);
+			    var sourceNode = await _uaClient.ReadNodeAsync(server, decodedNodeId);
                 result["node-id"] = decodedNodeId;
                 result["name"] = sourceNode.DisplayName.Text;
 
@@ -69,23 +91,23 @@ namespace WebPlatform.Controllers
                     case NodeClass.Variable:
                         result["type"] = "variable";
                         var varNode = (VariableNode)sourceNode;
-                        var uaValue = await _uaClient.ReadUaValueAsync(serverUrl, varNode);
+                        var uaValue = await _uaClient.ReadUaValueAsync(server, varNode);
                         result["value"] = uaValue.Value;
                         result["value-schema"] = JObject.Parse(uaValue.Schema.ToString());
                         result["status"] = uaValue.StatusCode?.ToString() ?? "";
-                        result["deadBand"] = await _uaClient.GetDeadBandAsync(serverUrl, varNode);
+                        result["deadBand"] = await _uaClient.GetDeadBandAsync(server, varNode);
                         result["minimumSamplingInterval"] = varNode.MinimumSamplingInterval;
                         break;
                     case NodeClass.Object:
-                        result["type"] = await _uaClient.IsFolderTypeAsync(serverUrl, decodedNodeId) ? "folder" : "object";
+                        result["type"] = await _uaClient.IsFolderTypeAsync(server, decodedNodeId) ? "folder" : "object";
                         break;
                 }
 
                 var linkedNodes = new JArray();
-                var refDescriptions = await _uaClient.BrowseAsync(serverUrl, decodedNodeId);
+                var refDescriptions = await _uaClient.BrowseAsync(server, decodedNodeId);
                 foreach (var rd in refDescriptions)
                 {
-                    var refTypeNode = await _uaClient.ReadNodeAsync(serverUrl, rd.ReferenceTypeId);
+                    var refTypeNode = await _uaClient.ReadNodeAsync(server, rd.ReferenceTypeId);
                     var targetNode = new JObject
                     {
                         ["node-id"] = rd.PlatformNodeId,
@@ -102,7 +124,7 @@ namespace WebPlatform.Controllers
                             targetNode["Type"] = "method";
                             break;
                         case NodeClass.Object:
-                            targetNode["Type"] = await _uaClient.IsFolderTypeAsync(serverUrl, rd.PlatformNodeId)
+                            targetNode["Type"] = await _uaClient.IsFolderTypeAsync(server, rd.PlatformNodeId)
                                 ? "folder"
                                 : "object";
                             break;
@@ -165,8 +187,8 @@ namespace WebPlatform.Controllers
 
             if (ds_id < 0 || ds_id >= _uaServers.Length) return NotFound($"There is no Data Set for id {ds_id}");
 
-            var serverUrl = _uaServers[ds_id].Url;
-            if (!(await _uaClient.IsServerAvailable(serverUrl)))
+            var server = _uaServers[ds_id];
+            if (!(await _uaClient.IsServerAvailable(server)))
                 return StatusCode(500, new
                 {
                     error = "Data Set " + ds_id + " NotAvailable"
@@ -177,7 +199,7 @@ namespace WebPlatform.Controllers
             Node sourceNode;
             try
             {
-                sourceNode = await _uaClient.ReadNodeAsync(serverUrl, decodedNodeId);
+                sourceNode = await _uaClient.ReadNodeAsync(server, decodedNodeId);
             }
             catch (ServiceResultException exc)
             {
@@ -226,7 +248,7 @@ namespace WebPlatform.Controllers
             
             try
             {
-                await _uaClient.WriteNodeValueAsync(serverUrl, variableNode, state);
+                await _uaClient.WriteNodeValueAsync(server, variableNode, state);
             }
             catch(ValueToWriteTypeException exc)
             {
@@ -265,7 +287,7 @@ namespace WebPlatform.Controllers
                 }
                     
             }
-            return Ok("Write on Node {node_id} in the Data Set {ds_id} executed.");
+            return Ok($"Write on Node {node_id} in the Data Set {ds_id} executed.");
         }
 
         [HttpPost("data-sets/{ds_id:int}/monitor")]
@@ -300,14 +322,14 @@ namespace WebPlatform.Controllers
                 }
             }
             
-            var serverUrl = _uaServers[ds_id].Url;
-            if (!(await _uaClient.IsServerAvailable(serverUrl)))
+            var server = _uaServers[ds_id];
+            if (!(await _uaClient.IsServerAvailable(server)))
                 return StatusCode(500, "Data Set " + ds_id + " NotAvailable");
             
             bool[] results;
             try 
             {
-                results = await _uaClient.CreateMonitoredItemsAsync(serverUrl, 
+                results = await _uaClient.CreateMonitoredItemsAsync(server, 
                     monitorParams.MonitorableNodes, 
                     monitorParams.BrokerUrl, 
                     monitorParams.Topic);
@@ -357,8 +379,8 @@ namespace WebPlatform.Controllers
                 });
             }
             
-            var serverUrl = _uaServers[ds_id].Url;
-            var result = await _uaClient.DeleteMonitoringPublish(serverUrl, stopMonitorParams.BrokerUrl,
+            var server = _uaServers[ds_id];
+            var result = await _uaClient.DeleteMonitoringPublish(server, stopMonitorParams.BrokerUrl,
                     stopMonitorParams.Topic);
 
             if (result)
